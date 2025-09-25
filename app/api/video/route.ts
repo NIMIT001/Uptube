@@ -1,33 +1,59 @@
 import { authOptions } from "@/lib/auth";
 import { connectToDB } from "@/lib/db";
-import Video from "@/model/videos";
+import Video, { IVideo } from "@/model/videos";
 import { getServerSession } from "next-auth";
-import { NextResponse } from "next/server";
-export async function GET(){
-    try {
-        await connectToDB()
-        const videos =await Video.find({}).sort({createdAt: -1}).lean()
-        if(!videos || videos.length === 0 ){
-            return NextResponse.json([],{status:200})
-        }
-        return NextResponse.json(videos)
-    } catch (error) {
-        return NextResponse.json(
-            {error: "failed to fetch videos"},
-            {status: 500}
-        );
-         
+import { NextRequest, NextResponse } from "next/server";
+export async function GET() {
+  try {
+    await connectToDB();
+    const videos = await Video.find({}).sort({ createdAt: -1 }).lean();
+    if (!videos || videos.length === 0) {
+      return NextResponse.json([], { status: 200 });
     }
+    return NextResponse.json(videos);
+  } catch (error) {
+    return NextResponse.json(
+      { error: "failed to fetch videos" },
+      { status: 500 }
+    );
+  }
 }
 
-
-
-export async function POST() {
-    try {
-       const session = await getServerSession(authOptions);
-        
-    } catch (error) {
-        
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized " }, { status: 401 });
     }
-    
+    await connectToDB();
+    const body: IVideo = await request.json();
+
+    if (
+      !body.thumbnailUrl ||
+      !body.title ||
+      !body.videoUrl ||
+      !body.description
+    ) {
+      return NextResponse.json(
+        { error: "Missing Required Fields" },
+        { status: 400 }
+      );
+    }
+    const videoData = {
+      ...body,
+      controls: body?.controls ?? true,
+      transformation: {
+        height: 1920,
+        width: 1080,
+        quality: body.transformation?.quality ?? 100,
+      },
+    };
+    const newVideo = await Video.create(videoData);
+    return NextResponse.json(newVideo);
+  } catch (error) {
+    return NextResponse.json(
+      { error: "failed to fetch videos" },
+      { status: 500 }
+    );
+  }
 }
